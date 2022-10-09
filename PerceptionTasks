@@ -1,0 +1,27 @@
+-----------------------Perception Tasks---------------
+
+
+1. Try Running turn_cameras with "front_camera","custom" parameter, receives
+
+#Important thing in https://github.com/SinfonIAUniandes/sinfonia_toolkit/blob/main/src/robot_toolkit.cpp  -> Search ctr+F "visionToolsCallback"
+
+???Que es en Helpers::VisionHelpers::kTopCamera
+
+	-resolution -> k16VGA,kQQQVGA,kQQQQVGA
+	-frame_rate -> (1,30) //Default es 10
+	-color_space->  kHSMixedColorSpace
+	
+2. Check other image compression methods, actualmente se pasa a formato jpg y ya
+	Intentar comprimir a PNG
+	
+3. Search for OCR apis or frameworks like tesseract
+
+
+-------------------------Face Tasks-----------------
+1. Check for cloud solutions
+2. Check for other trait detection frameworks
+3. Check for best face picture framework
+4. Check threshold of haarcascade
+
+
+
