@@ -120,7 +120,7 @@ def recognize_face(req):
 #Algorithm for saving a face
 def save_face(utilities,req):
     try:
-        umbral=8
+        umbral=10
         record_time = req.record_time
         name= req.name
         nPics = req.n_pics
@@ -165,8 +165,8 @@ def save_face(utilities,req):
             outOfBounds =0
             centers = []
             for (x,y,w,h) in faces:
-                factor_w = 0.3
-                factor_h = 0.5
+                factor_w = 0.5
+                factor_h = 0.8
                 scaled_w= int(w*(1+factor_w))
                 scaled_h= int(h*(1+factor_h))
                 #Factor scaling is better if faces are close or very far
@@ -183,7 +183,6 @@ def save_face(utilities,req):
                 if firstTime:
                     centroCaraAnterior = centroCara
                     firstTime= False
-                #print("El centro de la cara es",centroCara)
                 #diferencia con el centro
                 dif = centro-centroCara
                 centers.append(dif)
@@ -192,7 +191,7 @@ def save_face(utilities,req):
                     centinela = True
                     # cv2.rectangle(cv2_img, (x,y), (x+w, y+h), (0,255,0), 2)
                     rostro = copy[y:y+h, x:x+w]
-                    rostro = cv2.resize(rostro, (150,150), interpolation=cv2.INTER_CUBIC)
+                    rostro = cv2.resize(rostro, (150,180), interpolation=cv2.INTER_CUBIC)
             if centinela:                    
                 siguiente+=1
                 cv2.imwrite(picsPersonPath+"/"+name+str(siguiente)+".jpg",rostro)
@@ -224,8 +223,8 @@ def save_face(utilities,req):
             shutil.copy2(picsPersonPath+"/{}{}.jpg".format(name,pic),facePersonPath+"/{}{}".format(name,pic)+".jpg")
         
         #Cleans the pictures for optimizing memory    
-        # if os.path.isdir(picsPersonPath):
-        #     shutil.rmtree(picsPersonPath)
+        if os.path.isdir(picsPersonPath):
+            shutil.rmtree(picsPersonPath)
 
         print(consoleFormatter.format("The person: {} has been saved".format(name), "OKGREEN"))
         return True
