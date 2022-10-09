@@ -16,6 +16,8 @@ faceClassif = cv2.CascadeClassifier(PATH_PERCEPTION_UTLITIES+"/resources/model/h
 consoleFormatter=ConsoleFormatter.ConsoleFormatter()
 bridge = CvBridge()
 
+
+#Algorithm for face recognition
 def recognize_face(req):
     print(consoleFormatter.format("\nRequested recognize_face_service", "WARNING"))
     threshold =req.threshold
@@ -115,9 +117,10 @@ def recognize_face(req):
     return (person,result)
 
 
-def save_face(req, image1):
+#Algorithm for saving a face
+def save_face(utilities,req):
     try:
-        umbral=10
+        umbral=8
         record_time = req.record_time
         name= req.name
         nPics = req.n_pics
@@ -133,46 +136,49 @@ def save_face(req, image1):
         #Creates the folder of the faces in case it doesnt exist        
         if not os.path.exists(facePersonPath):
                         os.makedirs(facePersonPath)  
-        #Turns on the camer ain case it not on          
-        # if not self.isFrontCameraUp:
-        #     turn_camera = turn_camera_srvRequest()
-        #     turn_camera.camera_name = self.CAMERA_FRONT
-        #     turn_camera.enable = "enable"
-        #     self.callback_turn_camera_srv(turn_camera)
-
         siguiente = 0
 
         start =time.time()
         firstTime = True
+        cont=0
         while stop_record!=True:
+            cont+=1
             actual = time.time()
             if not os.path.exists(picsPersonPath):
                 os.makedirs(picsPersonPath) 
-            if(len(os.listdir(picsPersonPath)))>999 or start+record_time<actual:
+            if(len(os.listdir(picsPersonPath)))>2000 or start+record_time<actual:
                 stop_record = True
             #Image from the front camera
             #Posibilidad de cambiar esto a la imagen comprimida
-            image_raw = image1
+            image_raw = utilities.image1
             cv2_img = bridge.imgmsg_to_cv2(image_raw, 'bgr8')
             largo = len(cv2_img[0])
             ancho = len(cv2_img)
             centro = largo//2
 
-            faces = faceClassif.detectMultiScale(cv2_img, 1.3, 5)
+            faces = faceClassif.detectMultiScale(cv2_img, scaleFactor=1.3, minNeighbors=5,minSize=(30,30),flags=cv2.CASCADE_SCALE_IMAGE)
+
+            
             copy = cv2_img.copy()
             menor = 10000
             centinela = False
             outOfBounds =0
             centers = []
             for (x,y,w,h) in faces:
-                if x<20 or y<20 or x+w>largo-20 or y+h>ancho-20:
+                factor_w = 0.3
+                factor_h = 0.5
+                scaled_w= int(w*(1+factor_w))
+                scaled_h= int(h*(1+factor_h))
+                #Factor scaling is better if faces are close or very far
+                if x<factor_w*w/2 or y<factor_h*h/2 or x+w>largo-factor_w*w/2 or y+h>ancho-factor_h*h/2:
                     outOfBounds +=1
                     print("La cara se salió de la foto")
                     continue
-                x-=20
-                w+=40
-                y-=20
-                h+=40
+                x-=int(factor_w*w/2)
+                w=scaled_w
+                y-=int(factor_h*h/2)
+                h=scaled_h
+
                 centroCara = (x+(x+w))//2
                 if firstTime:
                     centroCaraAnterior = centroCara
@@ -218,8 +224,9 @@ def save_face(req, image1):
             shutil.copy2(picsPersonPath+"/{}{}.jpg".format(name,pic),facePersonPath+"/{}{}".format(name,pic)+".jpg")
         
         #Cleans the pictures for optimizing memory    
-        if os.path.isdir(picsPersonPath):
-            shutil.rmtree(picsPersonPath)
+        # if os.path.isdir(picsPersonPath):
+        #     shutil.rmtree(picsPersonPath)
+
         print(consoleFormatter.format("The person: {} has been saved".format(name), "OKGREEN"))
         return True
 
