@@ -6,85 +6,69 @@ import ConsoleFormatter
 import random
 import rospkg
 import face_recognition
+from deepface import DeepFace #pip3 install deepface
+
 
 from cv_bridge import CvBridge
 
 PATH_PERCEPTION_UTLITIES = rospkg.RosPack().get_path('perception_utilities')
 PATH_DATA = PATH_PERCEPTION_UTLITIES+'/resources/data/'
+PATH_FACES = PATH_DATA+'faces/'
 
 faceClassif = cv2.CascadeClassifier(PATH_PERCEPTION_UTLITIES+"/resources/model/haarcascade_frontalface_default.xml")
 consoleFormatter=ConsoleFormatter.ConsoleFormatter()
 bridge = CvBridge()
 
+def faceAttributes(utilities,req):
+    file_path = PATH_DATA+req.file_name
+    image = cv2.imread(file_path)
+    analize = DeepFace.analyze(image,actions=['emotion','age','gender','race'])
+    print(analize)
+    return {"status": None, "gender": None, "age": None, "attributes":None}
 
-#Algorithm for face recognition
+#https://pypi.org/project/deepface/#description
+#Luccas Version
 def recognize_face(req):
-    print(consoleFormatter.format("\nRequested recognize_face_service", "WARNING"))
-    threshold =req.threshold
-    face_test_path= PATH_DATA+req.photo_name
-    person =""
-    result=""
-    try:
+        print(consoleFormatter.format("\nRequested recognize_face_service", "WARNING"))
+        threshold =req.threshold
+        face_test_path= PATH_DATA+req.photo_name
+        person =""
+        result=""
+    # try:
         if os.path.exists(face_test_path):
 
-            folder_face = PATH_DATA+'faces'
+            faces_folder = PATH_DATA+'faces'
 
-            for folders in os.listdir(folder_face):
-                person_len_photo = len(os.listdir(folder_face+'/'+folders))
-                if person_len_photo == 0:
-                    os.rmdir(folder_face+'/'+folders)
-                    print("The face "+folders+"was delete succesfuly")
-
-            known_face_names = [None]*len(os.listdir(folder_face))
+            known_face_names = [None]*len(os.listdir(faces_folder))
             cont = 0
             for names in known_face_names:
-                known_face_names[cont] = os.listdir(folder_face)[cont]
+                known_face_names[cont] = os.listdir(faces_folder)[cont]
                 cont+=1
 
             current_face = 0
-            nFaces = [None]*len(os.listdir(folder_face))
+            nFaces = [None]*len(os.listdir(faces_folder))
 
-            photos_face = []
-            known_faces = []
-            know_face_encodings = []
-                    
-            for face_list in os.listdir(folder_face):
+            considenceFace = []
+ 
+            for person in os.listdir(faces_folder):
+                person_path = faces_folder+'/'+person
+                for person_img in os.listdir(person_path):
+                    img_path = person_path+'/'+person_img
+                    print("Path img1: ",img_path)
+                    try:
+                    #Install manually the model -> open verify until git link
+                    #Install the file in /home/luccas/.deepface/weights/
+                        comparison = DeepFace.verify(img_path,face_test_path,model_name ="Facenet",distance_metric="euclidean_l2")
+                        print(comparison)
+                        if comparison['verified'] == True:
+                            considenceFace.append(person_img)
+                    except:
+                         continue
+            print("Lista de nombres que le pego: " , considenceFace)
 
-                specific_face_path= folder_face+'/'+face_list
-                for img_list in os.listdir(folder_face+'/'+face_list):
-                    photo_face=img_list
-                    photos_face.append(photo_face)
+            name_of_the_face = "Unknow Person"
+                
 
-                for current_photo in photos_face:
-                    known_faces.append(face_recognition.load_image_file(specific_face_path+'/'+current_photo))
-
-
-                for current_photo in known_faces:
-                    #print(current_photo)
-                    know_face_encodings.append(face_recognition.face_encodings(current_photo)[0])
-
-
-                test_image = face_recognition.load_image_file(face_test_path)
-
-                face_locations = face_recognition.face_locations(test_image)
-                face_encodings = face_recognition.face_encodings(test_image,face_locations)
-
-                matches = None
-                name_of_the_face = "Unknow Person"
-                for(top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-                    matches = face_recognition.compare_faces(know_face_encodings,face_encoding)
-                    #print(str(matches)+'->'+str(face_list))
-                    n_trues = 0
-                    for trues in matches:
-                        if trues:
-                            n_trues+=1
-                    percent_true = n_trues/len(os.listdir(folder_face+'/'+face_list))
-                    nFaces[current_face]= percent_true
-
-                current_face+=1
-                photos_face = []
-                known_faces = []    
-                know_face_encodings = []
 
 
             max_accert = 0
@@ -110,11 +94,114 @@ def recognize_face(req):
             print(consoleFormatter.format("The photo "+req.photo_name+" does not exist.","FAIL"))
             person = "NONE"
             result = 'not-approved'
-    except:
+    # except:
         person = 'NONE'
         result = 'not-approved'
         print(consoleFormatter.format("It was not possible to recognize a person","FAIL"))
-    return (person,result)
+        return (person,result)
+
+
+#Algorithm for face recognition
+# def recognize_face(req):
+#     print(consoleFormatter.format("\nRequested recognize_face_service", "WARNING"))
+#     threshold =req.threshold
+#     face_test_path= PATH_DATA+req.photo_name
+#     person =""
+#     result=""
+#     try:
+#         if os.path.exists(face_test_path):
+
+#             folder_face = PATH_DATA+'faces'
+
+#             for folders in os.listdir(folder_face):
+#                 person_len_photo = len(os.listdir(folder_face+'/'+folders))
+#                 if person_len_photo == 0:
+#                     os.rmdir(folder_face+'/'+folders)
+#                     print("The face "+folders+"was delete succesfuly")
+
+#             known_face_names = [None]*len(os.listdir(folder_face))
+#             cont = 0
+#             for names in known_face_names:
+#                 known_face_names[cont] = os.listdir(folder_face)[cont]
+#                 cont+=1
+
+#             current_face = 0
+#             nFaces = [None]*len(os.listdir(folder_face))
+
+#             photos_face = []
+#             known_faces = []
+#             know_face_encodings = []
+                    
+#             for face_list in os.listdir(folder_face):
+
+#                 specific_face_path= folder_face+'/'+face_list
+#                 for img_list in os.listdir(folder_face+'/'+face_list):
+#                     photo_face=img_list
+#                     photos_face.append(photo_face)
+
+#                 for current_photo in photos_face:
+#                     known_faces.append(face_recognition.load_image_file(specific_face_path+'/'+current_photo))
+
+
+#                 for current_photo in known_faces:
+#                     #print(current_photo)
+#                     try:
+#                         know_face_encodings.append(face_recognition.face_encodings(current_photo)[0])
+#                     except:
+#                         continue
+
+
+#                 test_image = face_recognition.load_image_file(face_test_path)
+
+#                 face_locations = face_recognition.face_locations(test_image)
+#                 face_encodings = face_recognition.face_encodings(test_image,face_locations)
+
+#                 matches = None
+#                 name_of_the_face = "Unknow Person"
+#                 for(top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+#                     matches = face_recognition.compare_faces(know_face_encodings,face_encoding)
+#                     #print(str(matches)+'->'+str(face_list))
+#                     n_trues = 0
+#                     for trues in matches:
+#                         if trues:
+#                             n_trues+=1
+#                     percent_true = n_trues/len(os.listdir(folder_face+'/'+face_list))
+#                     nFaces[current_face]= percent_true
+
+#                 current_face+=1
+#                 photos_face = []
+#                 known_faces = []    
+#                 know_face_encodings = []
+
+
+#             max_accert = 0
+#             if (max(nFaces)*100)>= threshold:
+#                 max_accert = max(nFaces)
+#                 index_max = nFaces.index(max_accert)
+#                 name_of_the_face = known_face_names[index_max]
+#                 summary = ""
+#                 contador=-1
+#                 for fresult in known_face_names:
+#                     contador +=1  
+#                     summary += " ["+ str(known_face_names[contador])+','+str(nFaces[contador])+']'
+                    
+#             #print(consoleFormatter.format(summary,"OKBLUE"))
+#             print(consoleFormatter.format("Face name detected: "+ name_of_the_face+', '+str(max_accert*100)+'%',"OKBLUE"))
+#             print(consoleFormatter.format("Face recognition has been done successfully","OKGREEN"))
+
+
+
+#             person = name_of_the_face
+#             result = 'approved'
+#         else:
+#             print(consoleFormatter.format("The photo "+req.photo_name+" does not exist.","FAIL"))
+#             person = "NONE"
+#             result = 'not-approved'
+#     except:
+#         person = 'NONE'
+#         result = 'not-approved'
+#         print(consoleFormatter.format("It was not possible to recognize a person","FAIL"))
+#     return (person,result)
 
 
 #Algorithm for saving a face
