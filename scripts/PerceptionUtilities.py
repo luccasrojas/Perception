@@ -166,6 +166,9 @@ class PerceptionUtilities:
         self.image1 = msg
 
     #Callback for local pc camera    
+
+    #TODO
+
     def callback_local_camera_subscriber(self, msg):
         self.image1 = msg
         if self.image1detection == True:
@@ -187,54 +190,44 @@ class PerceptionUtilities:
                         print(consoleFormatter.format("The object: " +self.objectBeingSearched+" has been found", 'OKBLUE'))
                         thread = Thread(target=self.publish_look_for_object, args=(1,1,))
                         thread.start()
-        
+    
+
     def callback_front_camera_compressed_subscriber(self, msg):
         if self.image1detection == True:
-            np_arr = np.frombuffer(msg.data, np.uint8)
-            imageData = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)            
-            predictions = self.yoloDetect.Detection(imageData)
-            result, labels, x_coordinates, y_coordinates = self.yoloDetect.Draw_detection(predictions, imageData)
-            self.yoloPublisher.publish(self.bridge.cv2_to_imgmsg(result, 'bgr8'))
-
-            if len(labels) > 0 and self.getLabelsOn:   
-                msgLabels = get_labels_msg()
-                msgLabels.labels = list(map(str, labels))
-                msgLabels.x_coordinates = x_coordinates
-                msgLabels.y_coordinates = y_coordinates
-                self.getLabelsPublisher.publish(msgLabels) 
-                for i in range(len(labels)):
-                    self.labels[labels[i]]=1
-                    if self.isLooking4Object and labels[i]==self.objectBeingSearched:
-                        print(consoleFormatter.format("The object: " +self.objectBeingSearched+" has been found", 'OKBLUE'))
-                        thread = Thread(target=self.publish_look_for_object, args=(1,1,))
-                        thread.start()
+            self.camera_compressed_subscriber(msg)
 
     def callback_bottom_camera_compressed_subscriber(self, msg):
         if self.image2detection == True:    
-            np_arr = np.frombuffer(msg.data, np.uint8)
-            imageData = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)            
-            predictions = self.yoloDetect.Detection(imageData)
-            result, labels, x_coordinates, y_coordinates = self.yoloDetect.Draw_detection(predictions, imageData)
-            self.yoloPublisher.publish(self.bridge.cv2_to_imgmsg(result, 'bgr8'))
+            self.camera_compressed_subscriber(msg)
 
-            if len(labels) > 0 and self.getLabelsOn:   
-                msgLabels = get_labels_msg()
-                msgLabels.labels = list(map(str, labels))
-                msgLabels.x_coordinates = x_coordinates
-                msgLabels.y_coordinates = y_coordinates
-                self.getLabelsPublisher.publish(msgLabels) 
-                for i in range(len(labels)):
-                    self.labels[labels[i]]=1
-                    if self.isLooking4Object and labels[i]==self.objectBeingSearched:
-                        print(consoleFormatter.format("The object: " +self.objectBeingSearched+" has been found", 'OKBLUE'))
-                        thread = Thread(target=self.publish_look_for_object, args=(1,1,))
-                        thread.start()
+    def camera_compressed_subscriber(self, msg):
+        np_arr = np.frombuffer(msg.data, np.uint8)
+        imageData = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)            
+        predictions = self.yoloDetect.Detection(imageData)
+        result, labels, x_coordinates, y_coordinates = self.yoloDetect.Draw_detection(predictions, imageData)
+        self.yoloPublisher.publish(self.bridge.cv2_to_imgmsg(result, 'bgr8'))
+
+        if len(labels) > 0 and self.getLabelsOn:   
+            msgLabels = get_labels_msg()
+            msgLabels.labels = list(map(str, labels))
+            msgLabels.x_coordinates = x_coordinates
+            msgLabels.y_coordinates = y_coordinates
+            self.getLabelsPublisher.publish(msgLabels) 
+            for i in range(len(labels)):
+                self.labels[labels[i]]=1
+                if self.isLooking4Object and labels[i]==self.objectBeingSearched:
+                    print(consoleFormatter.format("The object: " +self.objectBeingSearched+" has been found", 'OKBLUE'))
+                    thread = Thread(target=self.publish_look_for_object, args=(1,1,))
+                    thread.start()
 
     def callback_bottom_camera_raw_subscriber(self, msg):
         self.image2 = msg
 
     def callback_depth_camera_raw_subscriber(self, msg):
-        self.deppth = msg
+        self.depth = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+        self.depth = cv2.cvtColor(self.depth,cv2.COLOR_BGR2GRAY)
+
+
 
 ####################### PUBLISHERS #########################
 
@@ -276,22 +269,27 @@ class PerceptionUtilities:
         turn_camera_bottom.enable = "enable"
         self.callback_turn_camera_srv(turn_camera_front)
         self.callback_turn_camera_srv(turn_camera_bottom)
+
+#TODO
     def callback_turn_camera_srv(self, req):
         print(consoleFormatter.format("\nRequested turn camera service", "WARNING"))
         if req.camera_name in [self.CAMERA_FRONT, self.CAMERA_BOTTOM, self.CAMERA_DEPTH]:
             vision_request = vision_tools_msg()
-            vision_request.camera_name = "front_camera"
-            # vision_request.camera_name = req.camera_name
+            
             vision_request.command = req.enable
+            # vision_request.camera_name = req.camera_name
             if req.camera_name == self.CAMERA_BOTTOM:
                 #vision_request.camera_name+="_face_detector"
+                vision_request.camera_name = 'bottom_camera'
                 self.image2up = req.enable
                 print(consoleFormatter.format("The "+req.camera_name+" was "+req.enable+"d", "OKBLUE"))
             elif req.camera_name == self.CAMERA_FRONT:
                 #vision_request.camera_name+="_face_detector"
+                vision_request.camera_name = 'front_camera'
                 self.image1up = req.enable
                 print(consoleFormatter.format("The "+req.camera_name+" was "+req.enable+"d", "OKBLUE"))
             elif req.camera_name == self.CAMERA_DEPTH:
+                vision_request.camera_name = "depth_camera"
                 self.depthup = req.enable
                 print(consoleFormatter.format("The "+req.camera_name+" was "+req.enable+"d", "OKBLUE"))
             self.visionToolsServiceClient(vision_request)
@@ -320,7 +318,7 @@ class PerceptionUtilities:
                         turn_camera.camera_name = self.CAMERA_BOTTOM
                         turn_camera.enable = "enable"
                         self.callback_turn_camera_srv(turn_camera)
-                        print(consoleFormatter.format("Will try to save a photo to the path:", "WARNING"))
+                print(consoleFormatter.format("Will try to save a photo to the path:", "WARNING"))
                 cv2_img = self.bridge.imgmsg_to_cv2(image_raw, 'bgr8')
                 cv2.imwrite(self.PATH_DATA+req.file_name, cv2_img)
                 print(consoleFormatter.format("The image has been saved successfully", "OKGREEN"))
@@ -329,31 +327,6 @@ class PerceptionUtilities:
                 print(consoleFormatter.format("Can't take a photo with camera: "+req.camera_name, "FAIL"))
                 return 'not-approved'
 
-    def callback_save_image_srv(self, req):
-        print(consoleFormatter.format("\nRequested save image service", "WARNING"))
-        if req.camera_name in [self.CAMERA_BOTTOM, self.CAMERA_FRONT]:
-            if req.camera_name == self.CAMERA_FRONT:
-                image_raw = self.image1
-                if not self.image1up:
-                    turn_camera = turn_camera_srvRequest()
-                    turn_camera.camera_name = self.CAMERA_FRONT
-                    turn_camera.enable = "enable"
-                    self.callback_turn_camera_srv(turn_camera)
-            elif req.camera_name == self.CAMERA_BOTTOM:
-                image_raw = self.image2
-                if not self.image2up:
-                    turn_camera = turn_camera_srvRequest()
-                    turn_camera.camera_name = self.CAMERA_BOTTOM
-                    turn_camera.enable = "enable"
-                    self.callback_turn_camera_srv(turn_camera)
-                    print(consoleFormatter.format("Will try to save a photo to the path:", "WARNING"))
-            cv2_img = self.bridge.imgmsg_to_cv2(image_raw, 'bgr8')
-            cv2.imwrite(self.PATH_DATA+req.file_name, cv2_img)
-            print(consoleFormatter.format("The image has been saved successfully", "OKGREEN"))
-            return 'approved'
-        else:
-            print(consoleFormatter.format("Can't take a photo with camera: "+req.camera_name, "FAIL"))
-            return 'not-approved'
 
 ##################################### FACE SERVICES #####################################
     """ All services offered by face recognition lay in the face.py module,
@@ -367,7 +340,7 @@ class PerceptionUtilities:
         """
         print(consoleFormatter.format("\nRequested recognize_face_service", "WARNING"))
         face_response = recognize_face_srvResponse()
-        face_response.person, face_response.result = face.recognize_face(req)
+        face_response.person, face_response.result = face.recognize_face(self,req)
         return face_response
 
     #SAVE FACE: Save a face in the database.
@@ -377,7 +350,7 @@ class PerceptionUtilities:
         OUTPUT: save_face_response(True if the face was saved successfully or False if not)
         """
         print(consoleFormatter.format("\nRequested save face service", "WARNING"))
-        face.save_face(self,req)
+        return face.save_face(self,req)
 
     #GET PERSON DESCRIPTION: Given a picture, return the description of the person.
     def callback_get_person_description_srv(self, req):
@@ -386,7 +359,8 @@ class PerceptionUtilities:
         OUTPUT: person_description_response(array of characteristics of the person)
         """
         print(consoleFormatter.format('\nRequested get person description service', 'WARNING'))
-        return self.HAD.getHumanAttributes(req.file_name)
+        return face.faceAttributes(self,req)
+        # return self.HAD.getHumanAttributes(req.file_name)
 
 ##################################### OBJECT SERVICES #####################################
     def callback_get_labels_srv(self, req):
