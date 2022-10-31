@@ -5,7 +5,6 @@ import cv2
 import shutil
 import ConsoleFormatter
 import random
-import sys
 import numpy as np
 import rospkg
 import face_recognition
@@ -16,8 +15,9 @@ from cv_bridge import CvBridge
 
 PATH_PERCEPTION_UTLITIES = rospkg.RosPack().get_path('perception_utilities')
 PATH_DATA = PATH_PERCEPTION_UTLITIES+'/resources/data/'
+PATH_PICS = PATH_DATA+'pics/'
 PATH_FACES = PATH_DATA+'faces/'
-
+PATH_TEMP = PATH_DATA+'temp/'
 faceClassif = cv2.CascadeClassifier(PATH_PERCEPTION_UTLITIES+"/resources/model/haarcascade_frontalface_default.xml")
 consoleFormatter=ConsoleFormatter.ConsoleFormatter()
 bridge = CvBridge()
@@ -28,6 +28,10 @@ def faceAttributes(utilities,req):
     analize = DeepFace.analyze(image,actions=['emotion','age','gender','race'])
     print(analize)
     return {"status": None, "gender": None, "age": None, "attributes":None}
+
+
+"""Algoritmo por si se debe construir el archivo de face encodings en caso de ser borrado pero tener las imagenes de las diferentes 
+personas"""
 
 #SAVE ENCODINGS OF SAVED PEOPLE
 # def recognize_face(utilities,req):
@@ -52,75 +56,77 @@ def faceAttributes(utilities,req):
 #                 writer.writerow([name]+final_encodings)
 #     return 'ALL_ENCODINGS_SAVED','not-approved'
 
-
+"""Cambio de los parametros de msg, solo recibe la cantidad de imagenes para ser analizadas, lo cual se relaciona con la precision
+y el tiempo de ejecucion, una mayor cantidad de fotos implica mayor precision pero menos tiempo, ya no es necesario halar una imagen
+por archivo si no que automaticamente inicia el reconocimiento con loss rostros que se muestran en la camara"""
+#Algorithm to recognize face
 def recognize_face(utilities,req):
-    # try:
+    try:
         ans = save_face(utilities,req,recog = True)
+        if not ans:
+            return 'NO_PERSON_DETECTED','not-approved'
         faces_encodings_names = []
         faces_encodings_encodings = []
-        with open(PATH_DATA+'/face_encodings.csv', mode = "r") as f:
+        with open(PATH_DATA+'face_encodings.csv', mode = "r") as f:
             reader = csv.reader(f, delimiter=',', quotechar='"')
             for row in reader:
                 faces_encodings_names.append(row[0])
                 faces_encodings_encodings.append(np.array([float(x) for x in row[1:]]))
-        with open(PATH_DATA+'temp/face_encodings.csv', mode = "r") as f:
+        with open(PATH_TEMP+'face_encodings.csv', mode = "r") as f:
             reader = csv.reader(f, delimiter=',', quotechar='"')
             for row in reader:
                 face_encodings = np.array([float(x) for x in row])
-
         matches = None
-        name_of_the_face = "Unknow Person"
+        name_of_the_face = "Unknown"
         matches = face_recognition.compare_faces(faces_encodings_encodings,face_encodings)
         if True in matches:
             first_match_index = matches.index(True)
-            name_of_the_face = faces_encodings_names[first_match_index]
+            name_of_the_face = faces_encodings_names[first_match_index] 
         return name_of_the_face,'approved'
-    # except:
-        return 'unknown','not-approved'
+    except:
+        return 'ERROR','not-approved'
 
 
+"""Cambio de los parametros de entrada, ya no recibe tiempo si no solo cantidad de imagenes para analizar, lo cual se realaciona
+con el tiempo, ya que se establece que se necesitan 200 imagenes por cada imagen para analizar para aumentar la precision"""
 
-
-#Algorithm for saving a face
+# Algorithm for saving a face
 def save_face(utilities,req,recog = False):
     try:
+        # Umbral de cambio de la posicion de la cara con respecto al anterior frame
         umbral =10
-        if not recog:
-            num_pics = 1000
-            record_time = req.record_time
-            name= req.name
-            nPics = req.n_pics
-        else:
-            num_pics = 20
-            record_time = 3
-            name = 'suspect'
-            nPics = 4
 
-        picsPath = PATH_DATA+"pics"
-        facePath = PATH_DATA+"/faces"
+        if not recog:
+            name= req.name
+            nPics = req.num_pics
+        else:
+            name = 'suspect'
+            nPics = req.num_pics
+
+        num_pics = nPics*30
+        facePath = PATH_DATA+"/faces/"
         if recog:
-            facePath = PATH_DATA+"/temp"
+            facePath = PATH_TEMP
+
         stop_record = False
-        picsPersonPath = picsPath+"/"+name
-        facePersonPath = facePath+"/"+name
+        picsPersonPath = PATH_PICS+name
+        facePersonPath = facePath+name
 
         #Creates the folder where all the pictures are going to be saved
         if not os.path.exists(picsPersonPath):
-                os.makedirs(picsPersonPath) 
+            os.makedirs(picsPersonPath) 
         #Creates the folder of the faces in case it doesnt exist        
         if not os.path.exists(facePersonPath):
-                        os.makedirs(facePersonPath)  
+            os.makedirs(facePersonPath)  
         siguiente = 0
 
-        start =time.time()
         firstTime = True
         cont=0
         while stop_record!=True:
             cont+=1
-            actual = time.time()
             if not os.path.exists(picsPersonPath):
                 os.makedirs(picsPersonPath) 
-            if(len(os.listdir(picsPersonPath)))>num_pics or start+record_time<actual:
+            if(len(os.listdir(picsPersonPath)))>num_pics:
                 stop_record = True
             #Image from the front camera
             #Posibilidad de cambiar esto a la imagen comprimida
@@ -131,7 +137,6 @@ def save_face(utilities,req,recog = False):
             centro = largo//2
 
             faces = faceClassif.detectMultiScale(cv2_img, scaleFactor=1.3, minNeighbors=5,minSize=(30,30),flags=cv2.CASCADE_SCALE_IMAGE)
-
             
             copy = cv2_img.copy()
             menor = 10000
@@ -139,8 +144,8 @@ def save_face(utilities,req,recog = False):
             outOfBounds =0
             centers = []
             for (x,y,w,h) in faces:
-                factor_w = 0.5
-                factor_h = 0.8
+                factor_w = 0.3
+                factor_h = 0.5
                 scaled_w= int(w*(1+factor_w))
                 scaled_h= int(h*(1+factor_h))
                 #Factor scaling is better if faces are close or very far
@@ -203,9 +208,9 @@ def save_face(utilities,req,recog = False):
         print(consoleFormatter.format("Saving encodings from: {}".format(name), "OKGREEN"))
 
         encodings_matrix = []
-        for pics in os.listdir(facePath+"/"+name):
+        for pics in os.listdir(facePath+name):
             try:
-                img_encoding=(face_recognition.face_encodings(face_recognition.load_image_file(facePath+'/'+name+'/'+pics))[0]).tolist()
+                img_encoding=(face_recognition.face_encodings(face_recognition.load_image_file(facePath+name+'/'+pics))[0]).tolist()
                 encodings_matrix.append(img_encoding)
             except:
                 continue
@@ -226,13 +231,12 @@ def save_face(utilities,req,recog = False):
             print(consoleFormatter.format("The person: {} has been saved".format(name), "OKGREEN"))
             return True
         else:
-            with open(facePath+'/face_encodings.csv', mode = "w") as f:
+            with open(facePath+'face_encodings.csv', mode = "w") as f:
                 writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
                 writer.writerow(final_encodings)
-            if os.path.isdir(facePath+'/'+name):
-                shutil.rmtree(facePath+'/'+name)
+            if os.path.isdir(facePath+name):
+                shutil.rmtree(facePath+name)
             return True
-
     except:
         if os.path.isdir(picsPersonPath):
             shutil.rmtree(picsPersonPath)
